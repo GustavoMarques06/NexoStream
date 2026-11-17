@@ -1,0 +1,37 @@
+version: "2"
+
+run:
+  timeout: 5m
+
+linters:
+  # "standard" set: errcheck, govet, ineffassign, staticcheck, unused.
+  enable:
+    - bodyclose
+    - errorlint
+    - gosec
+    - misspell
+    - unconvert
+  settings:
+    errcheck:
+      exclude-functions:
+        - (net/http.ResponseWriter).Write
+        - fmt.Fprintf
+    gosec:
+      excludes:
+        - G204 # ffmpeg/ffprobe run with arguments built by the agent
+        - G304 # file paths come from configuration
+    misspell:
+      locale: US
+      # "programme" is an XMLTV element; "programas" is Portuguese.
+      ignore-rules:
+        - programme
+        - programas
+  exclusions:
+    presets:
+      - std-error-handling
+    rules:
+      - path: _test\.go
+        linters: [gosec, errcheck, bodyclose]
+      # Synthetic MPEG-TS generator: byte packing of header fields is intended.
+      - path: media-engine/ingest/tstest/
+        linters: [gosec]

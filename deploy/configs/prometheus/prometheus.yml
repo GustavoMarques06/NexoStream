@@ -1,0 +1,18 @@
+# /etc/prometheus/prometheus.yml (excerpt)
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files:
+  - /etc/prometheus/rules/nexostream.yml
+
+scrape_configs:
+  - job_name: nexostream-worker
+    static_configs:
+      - targets: ["10.10.0.21:9500", "10.10.0.22:9500"]
+  - job_name: node
+    static_configs:
+      - targets: ["10.10.0.21:9100", "10.10.0.22:9100"]
+  - job_name: nvidia-gpu
+    static_configs:
+      - targets: ["10.10.0.21:9400", "10.10.0.22:9400"]

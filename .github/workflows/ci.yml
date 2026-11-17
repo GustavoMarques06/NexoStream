@@ -1,0 +1,88 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  go:
+    runs-on: ubuntu-24.04
+    services:
+      postgres:
+        image: postgres:17.2
+        env:
+          POSTGRES_DB: nexostream
+          POSTGRES_USER: nexostream
+          POSTGRES_PASSWORD: ci-only
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U nexostream" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      NEXOSTREAM_TEST_DATABASE_URL: postgres://nexostream:ci-only@127.0.0.1:5432/nexostream?sslmode=disable
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: ffmpeg (end-to-end media test)
+        run: sudo apt-get update -q && sudo apt-get install -y -q ffmpeg
+      - name: gofmt
+        run: test -z "$(gofmt -l .)" || (gofmt -l . && exit 1)
+      - name: vet
+        run: go vet ./...
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v8
+        with:
+          version: v2.15.0
+      - name: test (race, PostgreSQL, ffmpeg e2e)
+        run: go test -race -count=1 ./...
+      - name: build
+        run: CGO_ENABLED=0 go build -trimpath -o bin/ ./cmd/...
+      - uses: actions/upload-artifact@v4
+        with:
+          name: binaries-linux-amd64
+          path: bin/
+
+  # Known vulnerabilities in the dependencies (Go modules, then npm packages).
+  # The tool version is pinned on purpose: an unpinned download would run
+  # unreviewed code in CI.
+  vulnerabilities:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: govulncheck
+        run: go run golang.org/x/vuln/cmd/govulncheck@v1.1.4 ./...
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: npm audit (production dependencies)
+        working-directory: web-panel
+        run: npm audit --omit=dev --audit-level=high
+
+  web-panel:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: web-panel
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web-panel/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run format:check
+      - run: npm run build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: web-panel
+          path: web-panel/dist/

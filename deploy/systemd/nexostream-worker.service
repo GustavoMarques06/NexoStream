@@ -1,0 +1,31 @@
+[Unit]
+Description=NexoStream Media Worker
+Documentation=file:///usr/share/doc/nexostream/deployment.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=nexostream
+Group=nexostream
+EnvironmentFile=/etc/nexostream/worker.env
+ExecStart=/usr/local/bin/nexostream-worker
+Restart=always
+RestartSec=2
+LimitNOFILE=1048576
+# The agent stops each channel in order; ffmpeg children die with it (PDEATHSIG).
+KillMode=mixed
+TimeoutStopSec=30
+# Hardening (the worker needs network, /var/lib/nexostream and /srv/nexostream).
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/nexostream /srv/nexostream /var/log/nexostream
+# GPU encoders need the device nodes.
+DeviceAllow=/dev/nvidia0 rw
+DeviceAllow=/dev/nvidiactl rw
+DeviceAllow=/dev/nvidia-uvm rw
+DeviceAllow=/dev/dri rw
+
+[Install]
+WantedBy=multi-user.target

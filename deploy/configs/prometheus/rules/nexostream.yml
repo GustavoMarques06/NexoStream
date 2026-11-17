@@ -1,0 +1,99 @@
+# Initial alerts (spec section 14.3, docs/operations.md section 3).
+# Thresholds are starting points; tune them in the lab.
+groups:
+  - name: nexostream
+    rules:
+      - alert: CanalSemSinal
+        # Channels that are not STOPPED (the STOPPED gauge is 0) without packets for 10 s.
+        expr: (time() - nexostream_channel_last_packet_timestamp_seconds) > 10 and on (channel_id, instance) (nexostream_channel_state{state="STOPPED"} == 0)
+        for: 0m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Canal {{ $labels.channel_id }} sem pacotes há mais de 10 s"
+          runbook: "docs/operations.md#41-canal-sem-sinal"
+
+      - alert: CanalEmFalha
+        expr: nexostream_channel_state{state="FAILED"} == 1
+        for: 30s
+        labels:
+          severity: critical
+        annotations:
+          summary: "Canal {{ $labels.channel_id }} em FAILED"
+          runbook: "docs/operations.md#41-canal-sem-sinal"
+
+      - alert: CanalEmFonteAlternativa
+        expr: max by (channel_id) (nexostream_channel_state{state=~"ON_BACKUP|RECOVERING"}) == 1
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Canal {{ $labels.channel_id }} em fonte alternativa há mais de 10 min"
+
+      - alert: ReiniciosExcessivos
+        expr: increase(nexostream_pipeline_restarts_total[10m]) > 5
+        labels:
+          severity: critical
+        annotations:
+          summary: "Canal {{ $labels.channel_id }} reiniciou mais de 5 vezes em 10 min"
+          runbook: "docs/operations.md#43-reinícios-frequentes"
+
+      - alert: ErrosDeContinuidade
+        # Limit to be defined per operation; 10 errors/min as a starting point.
+        expr: rate(nexostream_channel_cc_errors_total[5m]) * 60 > 10
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Canal {{ $labels.channel_id }} com {{ $value | humanize }} erros de continuidade por minuto"
+          runbook: "docs/operations.md#45-erros-de-continuidade-cc"
+
+      - alert: EntradaDescartada
+        expr: rate(nexostream_channel_input_dropped_bytes_total[5m]) > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Canal {{ $labels.channel_id }} descartando entrada (pipeline não acompanha)"
+
+      - alert: WorkerIndisponivel
+        expr: up{job="nexostream-worker"} == 0
+        for: 15s
+        labels:
+          severity: critical
+        annotations:
+          summary: "Worker {{ $labels.instance }} sem resposta há mais de 15 s"
+          runbook: "docs/operations.md#63-nó-indisponível"
+
+      - alert: DiscoDVR
+        expr: nexostream_dvr_storage_used_bytes / nexostream_dvr_storage_total_bytes > 0.85
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Volume {{ $labels.volume }} do DVR acima de 85%"
+          runbook: "docs/operations.md#52-disco-do-dvr-cheio"
+
+      - alert: CPUDoNo
+        expr: 100 - (avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 90
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "CPU de {{ $labels.instance }} acima de 90% há 5 min"
+
+      - alert: GPUDoNo
+        expr: DCGM_FI_DEV_GPU_UTIL > 90
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "GPU {{ $labels.gpu }} de {{ $labels.instance }} acima de 90% há 5 min"
+
+      - alert: GravacaoComProblema
+        # Periodic check of recorded hours (index, size, MPEG-TS sync).
+        expr: increase(nexostream_dvr_integrity_errors_total[1h]) > 0
+        labels:
+          severity: warning
+        annotations:
+          summary: "DVR do canal {{ $labels.channel_id }} com horas gravadas inconsistentes"

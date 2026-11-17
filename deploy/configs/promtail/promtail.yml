@@ -1,0 +1,35 @@
+# /etc/promtail/config.yml — ships the JSON logs of the nexostream-*
+# services from journald to Loki, with channel_id and worker_id as labels.
+server:
+  http_listen_port: 9080
+positions:
+  filename: /var/lib/promtail/positions.yaml
+clients:
+  - url: http://10.10.0.10:3100/loki/api/v1/push
+
+scrape_configs:
+  - job_name: nexostream
+    journal:
+      max_age: 12h
+      labels:
+        job: nexostream
+    relabel_configs:
+      - source_labels: ["__journal__systemd_unit"]
+        regex: "nexostream-.*\\.service"
+        action: keep
+      - source_labels: ["__journal__systemd_unit"]
+        target_label: unit
+      - source_labels: ["__journal__hostname"]
+        target_label: host
+    pipeline_stages:
+      - json:
+          expressions:
+            level: level
+            component: component
+            channel_id: channel_id
+            worker_id: worker_id
+      - labels:
+          level:
+          component:
+          channel_id:
+          worker_id:

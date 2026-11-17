@@ -1,0 +1,2952 @@
+{
+ "openapi": "3.0.3",
+ "info": {
+  "title": "NexoStream API",
+  "version": "1.0.0",
+  "description": "API de gerenciamento do NexoStream. Convenções em docs/api.md: JSON snake_case, datas ISO 8601 UTC, paginação por cursor (limit até 200), erros no formato {error:{code,message,request_id}}, cabeçalho X-Request-Id em toda resposta e Idempotency-Key aceito em POST /channels."
+ },
+ "servers": [
+  {
+   "url": "/api/v1"
+  }
+ ],
+ "security": [
+  {
+   "bearer": []
+  }
+ ],
+ "tags": [
+  {
+   "name": "auth"
+  },
+  {
+   "name": "channels"
+  },
+  {
+   "name": "sources"
+  },
+  {
+   "name": "profiles"
+  },
+  {
+   "name": "workers"
+  },
+  {
+   "name": "dvr"
+  },
+  {
+   "name": "events"
+  },
+  {
+   "name": "admin"
+  }
+ ],
+ "paths": {
+  "/auth/token": {
+   "post": {
+    "tags": [
+     "auth"
+    ],
+    "summary": "Autenticar e obter token",
+    "security": [],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "type": "object",
+        "required": [
+         "username",
+         "password"
+        ],
+        "properties": {
+         "username": {
+          "type": "string"
+         },
+         "password": {
+          "type": "string",
+          "format": "password"
+         }
+        }
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Tokens",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Tokens"
+        }
+       }
+      }
+     },
+     "401": {
+      "$ref": "#/components/responses/Error"
+     },
+     "429": {
+      "$ref": "#/components/responses/Error"
+     }
+    }
+   }
+  },
+  "/auth/refresh": {
+   "post": {
+    "tags": [
+     "auth"
+    ],
+    "summary": "Renovar o token de acesso",
+    "security": [],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "type": "object",
+        "required": [
+         "refresh_token"
+        ],
+        "properties": {
+         "refresh_token": {
+          "type": "string"
+         }
+        }
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Tokens",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Tokens"
+        }
+       }
+      }
+     },
+     "401": {
+      "$ref": "#/components/responses/Error"
+     }
+    }
+   }
+  },
+  "/auth/me": {
+   "get": {
+    "tags": [
+     "auth"
+    ],
+    "summary": "Identidade e escopos do chamador",
+    "responses": {
+     "200": {
+      "description": "Principal"
+     }
+    }
+   }
+  },
+  "/auth/logout": {
+   "post": {
+    "tags": [
+     "auth"
+    ],
+    "summary": "Encerra todas as sessões do usuário (access e refresh tokens emitidos até agora deixam de valer)",
+    "responses": {
+     "204": {
+      "description": "Sessões revogadas"
+     },
+     "422": {
+      "description": "O chamador é um token de integração"
+     }
+    }
+   }
+  },
+  "/branding": {
+   "get": {
+    "tags": [
+     "auth"
+    ],
+    "summary": "Marca do painel (whitelabel); público",
+    "security": [],
+    "responses": {
+     "200": {
+      "description": "Marca",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "object",
+         "properties": {
+          "name": {
+           "type": "string"
+          },
+          "tagline": {
+           "type": "string"
+          },
+          "color": {
+           "type": "string"
+          },
+          "logo": {
+           "type": "string"
+          },
+          "login_message": {
+           "type": "string"
+          }
+         }
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/channels": {
+   "get": {
+    "tags": [
+     "channels"
+    ],
+    "summary": "Listar canais (escopo channels:read)",
+    "parameters": [
+     {
+      "$ref": "#/components/parameters/Limit"
+     },
+     {
+      "$ref": "#/components/parameters/Cursor"
+     },
+     {
+      "name": "state",
+      "in": "query",
+      "schema": {
+       "$ref": "#/components/schemas/ChannelState"
+      }
+     },
+     {
+      "name": "group",
+      "in": "query",
+      "schema": {
+       "type": "string"
+      }
+     },
+     {
+      "name": "enabled",
+      "in": "query",
+      "schema": {
+       "type": "boolean"
+      }
+     },
+     {
+      "name": "worker_id",
+      "in": "query",
+      "schema": {
+       "type": "string"
+      }
+     },
+     {
+      "name": "processing",
+      "in": "query",
+      "schema": {
+       "type": "string",
+       "enum": [
+        "passthrough",
+        "transcode",
+        "audio_transcode"
+       ]
+      }
+     },
+     {
+      "name": "q",
+      "in": "query",
+      "description": "Busca por id ou nome",
+      "schema": {
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Página de canais",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "object",
+         "properties": {
+          "items": {
+           "type": "array",
+           "items": {
+            "$ref": "#/components/schemas/ChannelView"
+           }
+          },
+          "next_cursor": {
+           "type": "string",
+           "nullable": true
+          }
+         }
+        }
+       }
+      }
+     }
+    }
+   },
+   "post": {
+    "tags": [
+     "channels"
+    ],
+    "summary": "Criar canal (escopo channels:write)",
+    "parameters": [
+     {
+      "name": "Idempotency-Key",
+      "in": "header",
+      "schema": {
+       "type": "string",
+       "maxLength": 128
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/ChannelInput"
+       }
+      }
+     }
+    },
+    "responses": {
+     "201": {
+      "description": "Canal criado",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ChannelView"
+        }
+       }
+      }
+     },
+     "409": {
+      "$ref": "#/components/responses/Error"
+     },
+     "422": {
+      "$ref": "#/components/responses/Error"
+     }
+    }
+   }
+  },
+  "/channels/{id}": {
+   "parameters": [
+    {
+     "$ref": "#/components/parameters/ID"
+    }
+   ],
+   "get": {
+    "tags": [
+     "channels"
+    ],
+    "summary": "Detalhar canal",
+    "responses": {
+     "200": {
+      "description": "Canal",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ChannelView"
+        }
+       }
+      }
+     },
+     "404": {
+      "$ref": "#/components/responses/Error"
+     }
+    }
+   },
+   "patch": {
+    "tags": [
+     "channels"
+    ],
+    "summary": "Atualizar canal (campos ausentes não mudam)",
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/ChannelInput"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Canal",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ChannelView"
+        }
+       }
+      }
+     },
+     "422": {
+      "$ref": "#/components/responses/Error"
+     }
+    }
+   },
+   "delete": {
+    "tags": [
+     "channels"
+    ],
+    "summary": "Remover canal (precisa estar parado)",
+    "responses": {
+     "204": {
+      "description": "Removido"
+     },
+     "409": {
+      "$ref": "#/components/responses/Error"
+     }
+    }
+   }
+  },
+  "/channels/{id}/start": {
+   "parameters": [
+    {
+     "$ref": "#/components/parameters/ID"
+    }
+   ],
+   "post": {
+    "tags": [
+     "channels"
+    ],
+    "summary": "Iniciar (estado desejado enabled=true; escopo channels:operate)",
+    "responses": {
+     "202": {
+      "description": "Aceito"
+     }
+    }
+   }
+  },
+  "/channels/{id}/stop": {
+   "parameters": [
+    {
+     "$ref": "#/components/parameters/ID"
+    }
+   ],
+   "post": {
+    "tags": [
+     "channels"
+    ],
+    "summary": "Parar (enabled=false)",
+    "responses": {
+     "202": {
+      "description": "Aceito"
+     }
+    }
+   }
+  },
+  "/channels/{id}/restart": {
+   "parameters": [
+    {
+     "$ref": "#/components/parameters/ID"
+    }
+   ],
+   "post": {
+    "tags": [
+     "channels"
+    ],
+    "summary": "Reiniciar o pipeline",
+    "responses": {
+     "202": {
+      "description": "Aceito"
+     },
+     "409": {
+      "$ref": "#/components/responses/Error"
+     },
+     "503": {
+      "$ref": "#/components/responses/Error"
+     }
+    }
+   }
+  },
+  "/channels/{id}/switch-source": {
+   "parameters": [
+    {
+     "$ref": "#/components/parameters/ID"
+    }
+   ],
+   "post": {
+    "tags": [
+     "channels"
+    ],
+    "summary": "Trocar a fonte manualmente (suspende o retorno automático à principal)",
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "type": "object",
+        "required": [
+         "priority"
+        ],
+        "properties": {
+         "priority": {
+          "type": "integer"
+         },
+         "reason": {
+          "type": "string"
+         }
+        }
+       }
+      }
+     }
+    },
+    "responses": {
+     "202": {
+      "description": "Aceito; resultado no status e nos eventos"
+     },
+     "422": {
+      "$ref": "#/components/responses/Error"
+     }
+    }
+   }
+  },
+  "/channels/{id}/status": {
+   "parameters": [
+    {
+     "$ref": "#/components/parameters/ID"
+    }
+   ],
+   "get": {
+    "tags": [
+     "channels"
+    ],
+    "summary": "Estado atual",
+    "responses": {
+     "200": {
+      "description": "Status",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ChannelStatus"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/channels/{id}/events": {
+   "parameters": [
+    {
+     "$ref": "#/components/parameters/ID"
+    },
+    {
+     "$ref": "#/components/parameters/Limit"
+    },
+    {
+     "$ref": "#/components/parameters/Cursor"
+    }
+   ],
+   "get": {
+    "tags": [
+     "channels"
+    ],
+    "summary": "Histórico de eventos do canal",
+    "responses": {
+     "200": {
+      "description": "Eventos",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/EventPage"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/channels/{id}/playback-token": {
+   "parameters": [
+    {
+     "$ref": "#/components/parameters/ID"
+    }
+   ],
+   "post": {
+    "tags": [
+     "channels"
+    ],
+    "summary": "Gerar token de reprodução de um canal com DRM",
+    "description": "Escopo channels:read. Token = <expira>.hex(HMAC-SHA256(chave, \"nexostream-play/v1\n\" + canal + \"\n\" + <expira>)); o middleware da operadora pode assinar com a mesma chave (NEXOSTREAM_PLAYBACK_TOKEN_KEY_FILE).",
+    "requestBody": {
+     "required": false,
+     "content": {
+      "application/json": {
+       "schema": {
+        "type": "object",
+        "properties": {
+         "ttl_seconds": {
+          "type": "integer",
+          "minimum": 60,
+          "maximum": 604800,
+          "default": 21600
+         }
+        }
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Token e links",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "object",
+         "properties": {
+          "channel_id": {
+           "type": "string"
+          },
+          "token": {
+           "type": "string"
+          },
+          "expires_at": {
+           "type": "string",
+           "format": "date-time"
+          },
+          "hls_url": {
+           "type": "string"
+          },
+          "dvr_url": {
+           "type": "string"
+          }
+         }
+        }
+       }
+      }
+     },
+     "409": {
+      "$ref": "#/components/responses/Error"
+     },
+     "422": {
+      "$ref": "#/components/responses/Error"
+     },
+     "503": {
+      "$ref": "#/components/responses/Error"
+     }
+    }
+   }
+  },
+  "/channels/{id}/sessions": {
+   "parameters": [
+    {
+     "$ref": "#/components/parameters/ID"
+    }
+   ],
+   "get": {
+    "tags": [
+     "channels"
+    ],
+    "summary": "Sessões de reprodução do canal",
+    "responses": {
+     "200": {
+      "description": "Sessões",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "object",
+         "properties": {
+          "channel_id": {
+           "type": "string"
+          },
+          "worker_id": {
+           "type": "string"
+          },
+          "open": {
+           "type": "array",
+           "items": {
+            "$ref": "#/components/schemas/PlaySession"
+           }
+          },
+          "closed": {
+           "type": "array",
+           "items": {
+            "$ref": "#/components/schemas/PlaySession"
+           }
+          }
+         }
+        }
+       }
+      }
+     },
+     "503": {
+      "$ref": "#/components/responses/Error"
+     }
+    }
+   }
+  },
+  "/channels/{id}/sessions/{session_id}": {
+   "parameters": [
+    {
+     "$ref": "#/components/parameters/ID"
+    },
+    {
+     "name": "session_id",
+     "in": "path",
+     "required": true,
+     "schema": {
+      "type": "string"
+     }
+    }
+   ],
+   "delete": {
+    "tags": [
+     "channels"
+    ],
+    "summary": "Encerrar uma sessão (recusada por 2 min)",
+    "responses": {
+     "204": {
+      "description": "Encerrada"
+     },
+     "404": {
+      "$ref": "#/components/responses/Error"
+     }
+    }
+   }
+  },
+  "/sessions": {
+   "get": {
+    "tags": [
+     "channels"
+    ],
+    "summary": "Sessões abertas em todos os workers",
+    "responses": {
+     "200": {
+      "description": "Sessões",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "object",
+         "properties": {
+          "open": {
+           "type": "array",
+           "items": {
+            "$ref": "#/components/schemas/PlaySession"
+           }
+          },
+          "unreachable_workers": {
+           "type": "array",
+           "items": {
+            "type": "string"
+           }
+          }
+         }
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/sessions/history": {
+   "get": {
+    "tags": [
+     "channels"
+    ],
+    "summary": "Histórico de sessões encerradas (30 dias)",
+    "parameters": [
+     {
+      "name": "channel_id",
+      "in": "query",
+      "schema": {
+       "type": "string"
+      }
+     },
+     {
+      "name": "user_id",
+      "in": "query",
+      "schema": {
+       "type": "string"
+      }
+     },
+     {
+      "name": "ip",
+      "in": "query",
+      "schema": {
+       "type": "string"
+      }
+     },
+     {
+      "name": "from",
+      "in": "query",
+      "schema": {
+       "type": "string"
+      }
+     },
+     {
+      "name": "to",
+      "in": "query",
+      "schema": {
+       "type": "string"
+      }
+     },
+     {
+      "name": "limit",
+      "in": "query",
+      "schema": {
+       "type": "integer"
+      }
+     },
+     {
+      "name": "cursor",
+      "in": "query",
+      "schema": {
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Sessões",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "object",
+         "properties": {
+          "items": {
+           "type": "array",
+           "items": {
+            "$ref": "#/components/schemas/PlaySession"
+           }
+          },
+          "next_cursor": {
+           "type": "string"
+          }
+         }
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/alerts": {
+   "get": {
+    "tags": [
+     "channels"
+    ],
+    "summary": "Alertas ativos (spec 14.3)",
+    "responses": {
+     "200": {
+      "description": "Alertas",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "object",
+         "properties": {
+          "items": {
+           "type": "array",
+           "items": {
+            "type": "object",
+            "properties": {
+             "id": {
+              "type": "string"
+             },
+             "rule": {
+              "type": "string"
+             },
+             "severity": {
+              "type": "string",
+              "enum": [
+               "critical",
+               "warning"
+              ]
+             },
+             "title": {
+              "type": "string"
+             },
+             "detail": {
+              "type": "string"
+             },
+             "channel_id": {
+              "type": "string"
+             },
+             "worker_id": {
+              "type": "string"
+             },
+             "since": {
+              "type": "string",
+              "format": "date-time"
+             }
+            }
+           }
+          },
+          "counts": {
+           "type": "object"
+          }
+         }
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/stats": {
+   "get": {
+    "tags": [
+     "channels"
+    ],
+    "summary": "Séries de estatística (uma amostra por minuto, 30 dias)",
+    "parameters": [
+     {
+      "name": "from",
+      "in": "query",
+      "schema": {
+       "type": "string",
+       "format": "date-time"
+      }
+     },
+     {
+      "name": "to",
+      "in": "query",
+      "schema": {
+       "type": "string",
+       "format": "date-time"
+      }
+     },
+     {
+      "name": "keys",
+      "in": "query",
+      "schema": {
+       "type": "string"
+      }
+     },
+     {
+      "name": "prefix",
+      "in": "query",
+      "schema": {
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Séries {chave: [{t, v}]}"
+     },
+     "400": {
+      "$ref": "#/components/responses/Error"
+     }
+    }
+   }
+  },
+  "/stats/top-channels": {
+   "get": {
+    "tags": [
+     "channels"
+    ],
+    "summary": "Canais mais assistidos (espectador-minuto e pico)",
+    "parameters": [
+     {
+      "name": "from",
+      "in": "query",
+      "schema": {
+       "type": "string",
+       "format": "date-time"
+      }
+     },
+     {
+      "name": "to",
+      "in": "query",
+      "schema": {
+       "type": "string",
+       "format": "date-time"
+      }
+     },
+     {
+      "name": "limit",
+      "in": "query",
+      "schema": {
+       "type": "integer",
+       "maximum": 200
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Ranking"
+     }
+    }
+   }
+  },
+  "/channels/{id}/epg": {
+   "parameters": [
+    {
+     "$ref": "#/components/parameters/ID"
+    }
+   ],
+   "get": {
+    "tags": [
+     "channels"
+    ],
+    "summary": "Programação do canal",
+    "parameters": [
+     {
+      "name": "from",
+      "in": "query",
+      "schema": {
+       "type": "string",
+       "format": "date-time"
+      }
+     },
+     {
+      "name": "to",
+      "in": "query",
+      "schema": {
+       "type": "string",
+       "format": "date-time"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Programas",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "object",
+         "properties": {
+          "programs": {
+           "type": "array",
+           "items": {
+            "$ref": "#/components/schemas/Program"
+           }
+          },
+          "status": {
+           "type": "object"
+          }
+         }
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/channels/{id}/epg/refresh": {
+   "parameters": [
+    {
+     "$ref": "#/components/parameters/ID"
+    }
+   ],
+   "post": {
+    "tags": [
+     "channels"
+    ],
+    "summary": "Importar o guia XMLTV agora",
+    "responses": {
+     "200": {
+      "description": "Resultado da importação"
+     },
+     "409": {
+      "$ref": "#/components/responses/Error"
+     }
+    }
+   }
+  },
+  "/epg.xml": {
+   "get": {
+    "tags": [
+     "channels"
+    ],
+    "summary": "Guia de todos os canais em XMLTV",
+    "parameters": [
+     {
+      "name": "hours",
+      "in": "query",
+      "schema": {
+       "type": "integer",
+       "minimum": 1,
+       "maximum": 336,
+       "default": 48
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "XMLTV",
+      "content": {
+       "application/xml": {
+        "schema": {
+         "type": "string"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/channels/{id}/sources": {
+   "parameters": [
+    {
+     "$ref": "#/components/parameters/ID"
+    }
+   ],
+   "get": {
+    "tags": [
+     "sources"
+    ],
+    "summary": "Listar fontes",
+    "responses": {
+     "200": {
+      "description": "Fontes"
+     }
+    }
+   },
+   "post": {
+    "tags": [
+     "sources"
+    ],
+    "summary": "Adicionar fonte",
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/Source"
+       }
+      }
+     }
+    },
+    "responses": {
+     "201": {
+      "description": "Fonte"
+     },
+     "422": {
+      "$ref": "#/components/responses/Error"
+     }
+    }
+   }
+  },
+  "/channels/{id}/sources/{source_id}": {
+   "parameters": [
+    {
+     "$ref": "#/components/parameters/ID"
+    },
+    {
+     "name": "source_id",
+     "in": "path",
+     "required": true,
+     "schema": {
+      "type": "string"
+     }
+    }
+   ],
+   "patch": {
+    "tags": [
+     "sources"
+    ],
+    "summary": "Alterar URL, interface ou prioridade",
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/Source"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Fonte"
+     }
+    }
+   },
+   "delete": {
+    "tags": [
+     "sources"
+    ],
+    "summary": "Remover fonte (não pode ser a única)",
+    "responses": {
+     "204": {
+      "description": "Removida"
+     },
+     "409": {
+      "$ref": "#/components/responses/Error"
+     }
+    }
+   }
+  },
+  "/sources/probe": {
+   "post": {
+    "tags": [
+     "sources"
+    ],
+    "summary": "Analisar uma URL sem cadastrá-la",
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "type": "object",
+        "required": [
+         "url"
+        ],
+        "properties": {
+         "url": {
+          "type": "string",
+          "example": "udp://239.1.1.1:1234"
+         },
+         "interface": {
+          "type": "string"
+         },
+         "seconds": {
+          "type": "number",
+          "maximum": 15
+         },
+         "worker_id": {
+          "type": "string"
+         }
+        }
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Resultado da análise"
+     },
+     "503": {
+      "$ref": "#/components/responses/Error"
+     }
+    }
+   }
+  },
+  "/transcode-profiles": {
+   "get": {
+    "tags": [
+     "profiles"
+    ],
+    "summary": "Listar perfis",
+    "responses": {
+     "200": {
+      "description": "Perfis"
+     }
+    }
+   },
+   "post": {
+    "tags": [
+     "profiles"
+    ],
+    "summary": "Criar perfil",
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/TranscodeProfile"
+       }
+      }
+     }
+    },
+    "responses": {
+     "201": {
+      "description": "Perfil"
+     },
+     "422": {
+      "$ref": "#/components/responses/Error"
+     }
+    }
+   }
+  },
+  "/transcode-profiles/{id}": {
+   "parameters": [
+    {
+     "$ref": "#/components/parameters/ID"
+    }
+   ],
+   "get": {
+    "tags": [
+     "profiles"
+    ],
+    "summary": "Detalhar perfil",
+    "responses": {
+     "200": {
+      "description": "Perfil"
+     }
+    }
+   },
+   "patch": {
+    "tags": [
+     "profiles"
+    ],
+    "summary": "Atualizar perfil (merge)",
+    "responses": {
+     "200": {
+      "description": "Perfil"
+     }
+    }
+   },
+   "delete": {
+    "tags": [
+     "profiles"
+    ],
+    "summary": "Remover perfil sem uso",
+    "responses": {
+     "204": {
+      "description": "Removido"
+     },
+     "409": {
+      "$ref": "#/components/responses/Error"
+     }
+    }
+   }
+  },
+  "/workers": {
+   "get": {
+    "tags": [
+     "workers"
+    ],
+    "summary": "Listar nós, estado e recursos (escopo workers:read)",
+    "responses": {
+     "200": {
+      "description": "Workers"
+     }
+    }
+   }
+  },
+  "/workers/{id}": {
+   "parameters": [
+    {
+     "$ref": "#/components/parameters/ID"
+    }
+   ],
+   "get": {
+    "tags": [
+     "workers"
+    ],
+    "summary": "Detalhar nó e canais atribuídos",
+    "responses": {
+     "200": {
+      "description": "Worker"
+     }
+    }
+   }
+  },
+  "/workers/{id}/drain": {
+   "parameters": [
+    {
+     "$ref": "#/components/parameters/ID"
+    }
+   ],
+   "post": {
+    "tags": [
+     "workers"
+    ],
+    "summary": "Parar de receber canais e migrar os atuais",
+    "responses": {
+     "202": {
+      "description": "Aceito"
+     }
+    }
+   }
+  },
+  "/workers/{id}/undrain": {
+   "parameters": [
+    {
+     "$ref": "#/components/parameters/ID"
+    }
+   ],
+   "post": {
+    "tags": [
+     "workers"
+    ],
+    "summary": "Voltar a receber canais",
+    "responses": {
+     "202": {
+      "description": "Aceito"
+     }
+    }
+   }
+  },
+  "/dvr/policies": {
+   "get": {
+    "tags": [
+     "dvr"
+    ],
+    "summary": "Listar políticas de gravação",
+    "responses": {
+     "200": {
+      "description": "Políticas"
+     }
+    }
+   }
+  },
+  "/dvr/policies/{id}": {
+   "parameters": [
+    {
+     "$ref": "#/components/parameters/ID"
+    }
+   ],
+   "patch": {
+    "tags": [
+     "dvr"
+    ],
+    "summary": "Alterar a política de gravação de um canal",
+    "responses": {
+     "200": {
+      "description": "Política"
+     }
+    }
+   }
+  },
+  "/dvr/storage": {
+   "get": {
+    "tags": [
+     "dvr"
+    ],
+    "summary": "Uso de disco do DVR por servidor",
+    "responses": {
+     "200": {
+      "description": "Uso"
+     }
+    }
+   }
+  },
+  "/dvr/{channel_id}/recordings": {
+   "parameters": [
+    {
+     "name": "channel_id",
+     "in": "path",
+     "required": true,
+     "schema": {
+      "type": "string"
+     }
+    }
+   ],
+   "get": {
+    "tags": [
+     "dvr"
+    ],
+    "summary": "Intervalos gravados (consultados no servidor que grava o canal)",
+    "parameters": [
+     {
+      "name": "from",
+      "in": "query",
+      "schema": {
+       "type": "string",
+       "format": "date-time"
+      }
+     },
+     {
+      "name": "to",
+      "in": "query",
+      "schema": {
+       "type": "string",
+       "format": "date-time"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Intervalos, segmentos e bytes"
+     }
+    }
+   }
+  },
+  "/dvr/{channel_id}/playlist.m3u8": {
+   "parameters": [
+    {
+     "name": "channel_id",
+     "in": "path",
+     "required": true,
+     "schema": {
+      "type": "string"
+     }
+    }
+   ],
+   "get": {
+    "tags": [
+     "dvr"
+    ],
+    "summary": "Redireciona para a playlist do servidor de mídia (from/to: catch-up; só from: timeshift)",
+    "responses": {
+     "302": {
+      "description": "Location: <nó>/dvr/<canal>/index.m3u8?from=&to="
+     }
+    }
+   }
+  },
+  "/events": {
+   "get": {
+    "tags": [
+     "events"
+    ],
+    "summary": "Eventos de canais e workers",
+    "parameters": [
+     {
+      "$ref": "#/components/parameters/Limit"
+     },
+     {
+      "$ref": "#/components/parameters/Cursor"
+     },
+     {
+      "name": "type",
+      "in": "query",
+      "schema": {
+       "type": "string"
+      }
+     },
+     {
+      "name": "channel_id",
+      "in": "query",
+      "schema": {
+       "type": "string"
+      }
+     },
+     {
+      "name": "worker_id",
+      "in": "query",
+      "schema": {
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Eventos",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/EventPage"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/stream/events": {
+   "get": {
+    "tags": [
+     "events"
+    ],
+    "summary": "Server-Sent Events (text/event-stream)",
+    "parameters": [
+     {
+      "name": "types",
+      "in": "query",
+      "description": "Lista separada por vírgulas",
+      "schema": {
+       "type": "string"
+      }
+     },
+     {
+      "name": "status",
+      "in": "query",
+      "description": "Inclui eventos channel.status",
+      "schema": {
+       "type": "boolean"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Fluxo de eventos",
+      "content": {
+       "text/event-stream": {}
+      }
+     }
+    }
+   }
+  },
+  "/audit-log": {
+   "get": {
+    "tags": [
+     "admin"
+    ],
+    "summary": "Consultar auditoria (escopo audit:read)",
+    "parameters": [
+     {
+      "$ref": "#/components/parameters/Limit"
+     },
+     {
+      "$ref": "#/components/parameters/Cursor"
+     },
+     {
+      "name": "actor",
+      "in": "query",
+      "schema": {
+       "type": "string"
+      }
+     },
+     {
+      "name": "action",
+      "in": "query",
+      "schema": {
+       "type": "string"
+      }
+     },
+     {
+      "name": "target",
+      "in": "query",
+      "schema": {
+       "type": "string"
+      }
+     },
+     {
+      "name": "from",
+      "in": "query",
+      "schema": {
+       "type": "string",
+       "format": "date-time"
+      }
+     },
+     {
+      "name": "to",
+      "in": "query",
+      "schema": {
+       "type": "string",
+       "format": "date-time"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Registros"
+     }
+    }
+   }
+  },
+  "/users": {
+   "get": {
+    "tags": [
+     "admin"
+    ],
+    "summary": "Listar usuários (admin)",
+    "responses": {
+     "200": {
+      "description": "Usuários"
+     }
+    }
+   },
+   "post": {
+    "tags": [
+     "admin"
+    ],
+    "summary": "Criar usuário (admin)",
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "type": "object",
+        "required": [
+         "username",
+         "password",
+         "role"
+        ],
+        "properties": {
+         "username": {
+          "type": "string"
+         },
+         "password": {
+          "type": "string",
+          "minLength": 10
+         },
+         "role": {
+          "type": "string",
+          "enum": [
+           "admin",
+           "operator",
+           "viewer"
+          ]
+         }
+        }
+       }
+      }
+     }
+    },
+    "responses": {
+     "201": {
+      "description": "Usuário"
+     }
+    }
+   }
+  },
+  "/users/{id}": {
+   "parameters": [
+    {
+     "$ref": "#/components/parameters/ID"
+    }
+   ],
+   "patch": {
+    "tags": [
+     "admin"
+    ],
+    "summary": "Alterar perfil, senha ou desativar",
+    "responses": {
+     "200": {
+      "description": "Usuário"
+     }
+    }
+   }
+  },
+  "/api-tokens": {
+   "get": {
+    "tags": [
+     "admin"
+    ],
+    "summary": "Listar tokens de integração",
+    "responses": {
+     "200": {
+      "description": "Tokens"
+     }
+    }
+   },
+   "post": {
+    "tags": [
+     "admin"
+    ],
+    "summary": "Criar token de integração (o valor aparece uma única vez)",
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "type": "object",
+        "required": [
+         "name",
+         "scopes"
+        ],
+        "properties": {
+         "name": {
+          "type": "string"
+         },
+         "scopes": {
+          "type": "array",
+          "items": {
+           "type": "string",
+           "enum": [
+            "channels:read",
+            "channels:write",
+            "channels:operate",
+            "dvr:read",
+            "dvr:write",
+            "workers:read",
+            "workers:write",
+            "audit:read"
+           ]
+          }
+         },
+         "expires_in_days": {
+          "type": "integer"
+         }
+        }
+       }
+      }
+     }
+    },
+    "responses": {
+     "201": {
+      "description": "Token"
+     }
+    }
+   }
+  },
+  "/api-tokens/{id}": {
+   "parameters": [
+    {
+     "$ref": "#/components/parameters/ID"
+    }
+   ],
+   "delete": {
+    "tags": [
+     "admin"
+    ],
+    "summary": "Revogar token",
+    "responses": {
+     "204": {
+      "description": "Revogado"
+     }
+    }
+   }
+  },
+  "/system/summary": {
+   "get": {
+    "tags": [
+     "events"
+    ],
+    "summary": "Resumo para o dashboard",
+    "responses": {
+     "200": {
+      "description": "Resumo"
+     }
+    }
+   }
+  },
+  "/openapi.json": {
+   "get": {
+    "tags": [
+     "admin"
+    ],
+    "summary": "Este documento",
+    "security": [],
+    "responses": {
+     "200": {
+      "description": "OpenAPI"
+     }
+    }
+   }
+  },
+  "/dvr/storages": {
+   "get": {
+    "tags": [
+     "dvr"
+    ],
+    "summary": "Listar armazenamentos (discos e RAID)",
+    "responses": {
+     "200": {
+      "description": "Armazenamentos"
+     }
+    }
+   },
+   "post": {
+    "tags": [
+     "dvr"
+    ],
+    "summary": "Criar armazenamento",
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/DVRStorage"
+       }
+      }
+     }
+    },
+    "responses": {
+     "201": {
+      "description": "Criado"
+     },
+     "422": {
+      "$ref": "#/components/responses/Error"
+     }
+    }
+   }
+  },
+  "/dvr/storages/{id}": {
+   "parameters": [
+    {
+     "$ref": "#/components/parameters/ID"
+    }
+   ],
+   "patch": {
+    "tags": [
+     "dvr"
+    ],
+    "summary": "Alterar modo ou discos (os canais recebem a nova configuração)",
+    "responses": {
+     "200": {
+      "description": "Armazenamento"
+     }
+    }
+   },
+   "delete": {
+    "tags": [
+     "dvr"
+    ],
+    "summary": "Remover armazenamento sem uso (os arquivos não são apagados)",
+    "responses": {
+     "204": {
+      "description": "Removido"
+     },
+     "409": {
+      "$ref": "#/components/responses/Error"
+     }
+    }
+   }
+  },
+  "/config": {
+   "get": {
+    "tags": [
+     "admin"
+    ],
+    "summary": "Exportar a configuração em texto (estilo Flussonic) (inclui settings e server para quem tem settings:admin)",
+    "responses": {
+     "200": {
+      "description": "Texto",
+      "content": {
+       "text/plain": {}
+      }
+     }
+    }
+   }
+  },
+  "/config/validate": {
+   "post": {
+    "tags": [
+     "admin"
+    ],
+    "summary": "Validar um texto e calcular o plano (criar/alterar/remover)",
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "type": "object",
+        "properties": {
+         "text": {
+          "type": "string"
+         },
+         "prune": {
+          "type": "boolean"
+         }
+        }
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Resultado com erros por linha e plano"
+     }
+    }
+   }
+  },
+  "/config/apply": {
+   "post": {
+    "tags": [
+     "admin"
+    ],
+    "summary": "Aplicar o texto (prune=true remove o que não está no texto)",
+    "responses": {
+     "200": {
+      "description": "Aplicado"
+     },
+     "422": {
+      "description": "Erros por linha; nada aplicado"
+     }
+    }
+   }
+  },
+  "/settings": {
+   "get": {
+    "tags": [
+     "admin"
+    ],
+    "summary": "Configurações do sistema (escopo settings:admin)",
+    "responses": {
+     "200": {
+      "description": "Valores atuais, padrões e se já foram salvos no painel",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "object",
+         "properties": {
+          "settings": {
+           "$ref": "#/components/schemas/Settings"
+          },
+          "defaults": {
+           "$ref": "#/components/schemas/Settings"
+          },
+          "saved": {
+           "type": "boolean"
+          }
+         }
+        }
+       }
+      }
+     }
+    }
+   },
+   "put": {
+    "tags": [
+     "admin"
+    ],
+    "summary": "Salvar as configurações do sistema; os servidores recebem em seguida",
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/Settings"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Salvo",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "object",
+         "properties": {
+          "settings": {
+           "$ref": "#/components/schemas/Settings"
+          },
+          "defaults": {
+           "$ref": "#/components/schemas/Settings"
+          },
+          "saved": {
+           "type": "boolean"
+          }
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Campos inválidos (details: campo → mensagem)",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Error"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/settings/defaults": {
+   "get": {
+    "tags": [
+     "channels"
+    ],
+    "summary": "Padrões aplicados a canais novos (escopo channels:read)",
+    "responses": {
+     "200": {
+      "description": "Nome do sistema, perfil, failover e DVR padrão"
+     }
+    }
+   }
+  },
+  "/settings/servers": {
+   "get": {
+    "tags": [
+     "admin"
+    ],
+    "summary": "Servidores de mídia com seus ajustes e o runtime resultante",
+    "responses": {
+     "200": {
+      "description": "Lista"
+     }
+    }
+   }
+  },
+  "/settings/servers/{id}": {
+   "put": {
+    "tags": [
+     "admin"
+    ],
+    "summary": "Salvar os ajustes de um servidor de mídia",
+    "parameters": [
+     {
+      "name": "id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/ServerSettings"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Salvo"
+     },
+     "422": {
+      "description": "Campos inválidos (details: campo → mensagem)",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Error"
+        }
+       }
+      }
+     }
+    }
+   }
+  }
+ },
+ "components": {
+  "securitySchemes": {
+   "bearer": {
+    "type": "http",
+    "scheme": "bearer",
+    "description": "JWT de usuário (15 min) ou token de integração nxs_..."
+   }
+  },
+  "parameters": {
+   "ID": {
+    "name": "id",
+    "in": "path",
+    "required": true,
+    "schema": {
+     "type": "string"
+    }
+   },
+   "Limit": {
+    "name": "limit",
+    "in": "query",
+    "schema": {
+     "type": "integer",
+     "minimum": 1,
+     "maximum": 200,
+     "default": 50
+    }
+   },
+   "Cursor": {
+    "name": "cursor",
+    "in": "query",
+    "schema": {
+     "type": "string"
+    }
+   }
+  },
+  "responses": {
+   "Error": {
+    "description": "Erro",
+    "content": {
+     "application/json": {
+      "schema": {
+       "$ref": "#/components/schemas/Error"
+      }
+     }
+    }
+   }
+  },
+  "schemas": {
+   "Error": {
+    "type": "object",
+    "properties": {
+     "error": {
+      "type": "object",
+      "properties": {
+       "code": {
+        "type": "string"
+       },
+       "message": {
+        "type": "string"
+       },
+       "request_id": {
+        "type": "string"
+       },
+       "details": {}
+      }
+     }
+    }
+   },
+   "Tokens": {
+    "type": "object",
+    "properties": {
+     "access_token": {
+      "type": "string"
+     },
+     "token_type": {
+      "type": "string"
+     },
+     "expires_in": {
+      "type": "integer"
+     },
+     "refresh_token": {
+      "type": "string"
+     }
+    }
+   },
+   "ChannelState": {
+    "type": "string",
+    "enum": [
+     "STOPPED",
+     "STARTING",
+     "RUNNING",
+     "DEGRADED",
+     "SWITCHING",
+     "ON_BACKUP",
+     "RECOVERING",
+     "FAILED"
+    ]
+   },
+   "Source": {
+    "type": "object",
+    "properties": {
+     "id": {
+      "type": "string"
+     },
+     "priority": {
+      "type": "integer",
+      "minimum": 1
+     },
+     "url": {
+      "type": "string",
+      "example": "udp://239.1.1.1:1234",
+      "description": "udp://, rtp://, srt://, rtmp://, rtmps://, rtsp://, http(s):// (HLS ou TS contínuo)"
+     },
+     "interface": {
+      "type": "string",
+      "example": "eno2"
+     }
+    }
+   },
+   "Outputs": {
+    "type": "object",
+    "properties": {
+     "hls": {
+      "type": "boolean"
+     },
+     "mpegts_http": {
+      "type": "boolean"
+     },
+     "mpegts_udp": {
+      "type": "string"
+     },
+     "dash": {
+      "type": "boolean",
+      "default": false,
+      "description": "MPEG-DASH em /<canal>/dash/index.mpd (não disponível com DRM)."
+     },
+     "push": {
+      "type": "array",
+      "maxItems": 10,
+      "items": {
+       "type": "string",
+       "description": "rtmp://, rtmps:// ou srt://"
+      },
+      "description": "Destinos de push; cada um reconecta sozinho."
+     }
+    }
+   },
+   "DVR": {
+    "type": "object",
+    "properties": {
+     "enabled": {
+      "type": "boolean"
+     },
+     "retention_hours": {
+      "type": "integer"
+     },
+     "path": {
+      "type": "string",
+      "description": "Pasta no servidor de mídia"
+     },
+     "storage": {
+      "type": "string",
+      "description": "Armazenamento (RAID)"
+     },
+     "all_qualities": {
+      "type": "boolean",
+      "description": "Em canal ABR, grava todas as qualidades (padrão: só a mais alta). O disco cresce com a soma das qualidades."
+     }
+    }
+   },
+   "Failover": {
+    "type": "object",
+    "properties": {
+     "no_packets_seconds": {
+      "type": "number",
+      "default": 3
+     },
+     "confirm_window_seconds": {
+      "type": "number",
+      "default": 5
+     },
+     "low_bitrate_ratio": {
+      "type": "number",
+      "default": 0.3
+     },
+     "low_bitrate_seconds": {
+      "type": "number",
+      "default": 10
+     },
+     "missing_stream_seconds": {
+      "type": "number",
+      "default": 5
+     },
+     "return_to_primary": {
+      "type": "boolean",
+      "default": true
+     },
+     "primary_stable_seconds": {
+      "type": "number",
+      "default": 60
+     }
+    }
+   },
+   "ChannelInput": {
+    "type": "object",
+    "properties": {
+     "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]{0,63}$"
+     },
+     "name": {
+      "type": "string"
+     },
+     "group": {
+      "type": "string"
+     },
+     "enabled": {
+      "type": "boolean",
+      "default": true
+     },
+     "mode": {
+      "type": "string",
+      "enum": [
+       "auto",
+       "passthrough",
+       "transcode"
+      ],
+      "default": "auto"
+     },
+     "profiles": {
+      "type": "array",
+      "items": {
+       "type": "string"
+      },
+      "maxItems": 6,
+      "description": "Um perfil; com mode=transcode, 2 a 6 perfis formam uma escada ABR (ADR 0011)."
+     },
+     "sources": {
+      "type": "array",
+      "items": {
+       "$ref": "#/components/schemas/Source"
+      },
+      "minItems": 1,
+      "maxItems": 8
+     },
+     "outputs": {
+      "$ref": "#/components/schemas/Outputs"
+     },
+     "dvr": {
+      "$ref": "#/components/schemas/DVR"
+     },
+     "drm": {
+      "$ref": "#/components/schemas/DRM"
+     },
+     "auth": {
+      "$ref": "#/components/schemas/Auth"
+     },
+     "epg": {
+      "$ref": "#/components/schemas/EPG"
+     },
+     "overlay": {
+      "$ref": "#/components/schemas/Overlay"
+     },
+     "failover": {
+      "$ref": "#/components/schemas/Failover"
+     }
+    }
+   },
+   "ChannelView": {
+    "allOf": [
+     {
+      "$ref": "#/components/schemas/ChannelInput"
+     },
+     {
+      "type": "object",
+      "properties": {
+       "revision": {
+        "type": "integer"
+       },
+       "created_at": {
+        "type": "string",
+        "format": "date-time"
+       },
+       "updated_at": {
+        "type": "string",
+        "format": "date-time"
+       },
+       "status": {
+        "$ref": "#/components/schemas/ChannelStatus"
+       }
+      }
+     }
+    ]
+   },
+   "ChannelStatus": {
+    "type": "object",
+    "properties": {
+     "channel_id": {
+      "type": "string"
+     },
+     "state": {
+      "$ref": "#/components/schemas/ChannelState"
+     },
+     "since": {
+      "type": "string",
+      "format": "date-time"
+     },
+     "reason": {
+      "type": "string"
+     },
+     "worker_id": {
+      "type": "string"
+     },
+     "revision": {
+      "type": "integer"
+     },
+     "active_source": {
+      "type": "object",
+      "properties": {
+       "priority": {
+        "type": "integer"
+       },
+       "url": {
+        "type": "string"
+       }
+      }
+     },
+     "processing": {
+      "type": "string",
+      "enum": [
+       "passthrough",
+       "transcode",
+       "audio_transcode"
+      ]
+     },
+     "input": {
+      "type": "object",
+      "properties": {
+       "bitrate_bps": {
+        "type": "integer"
+       },
+       "cc_errors_last_minute": {
+        "type": "integer"
+       },
+       "last_packet_at": {
+        "type": "string",
+        "format": "date-time"
+       },
+       "video": {
+        "type": "object"
+       },
+       "audio": {
+        "type": "array",
+        "items": {
+         "type": "object"
+        }
+       }
+      }
+     },
+     "outputs": {
+      "type": "object",
+      "additionalProperties": {
+       "type": "string"
+      }
+     },
+     "viewers": {
+      "type": "integer"
+     },
+     "last_error": {
+      "type": "string"
+     }
+    }
+   },
+   "TranscodeProfile": {
+    "type": "object",
+    "properties": {
+     "id": {
+      "type": "string"
+     },
+     "encoder": {
+      "type": "string",
+      "enum": [
+       "auto",
+       "cpu",
+       "nvenc",
+       "qsv"
+      ]
+     },
+     "video": {
+      "type": "object",
+      "properties": {
+       "codec": {
+        "type": "string",
+        "enum": [
+         "h264"
+        ]
+       },
+       "profile": {
+        "type": "string"
+       },
+       "width": {
+        "type": "integer"
+       },
+       "height": {
+        "type": "integer"
+       },
+       "bitrate_bps": {
+        "type": "integer"
+       },
+       "max_bitrate_bps": {
+        "type": "integer"
+       },
+       "gop_seconds": {
+        "type": "number"
+       },
+       "deinterlace": {
+        "type": "string",
+        "enum": [
+         "auto",
+         "on",
+         "off"
+        ]
+       },
+       "preset": {
+        "type": "string"
+       }
+      }
+     },
+     "audio": {
+      "type": "object",
+      "properties": {
+       "codec": {
+        "type": "string",
+        "enum": [
+         "aac"
+        ]
+       },
+       "bitrate_bps": {
+        "type": "integer"
+       },
+       "sample_rate": {
+        "type": "integer"
+       },
+       "channels": {
+        "type": "integer"
+       }
+      }
+     }
+    }
+   },
+   "Event": {
+    "type": "object",
+    "properties": {
+     "id": {
+      "type": "string"
+     },
+     "type": {
+      "type": "string"
+     },
+     "at": {
+      "type": "string",
+      "format": "date-time"
+     },
+     "channel_id": {
+      "type": "string"
+     },
+     "worker_id": {
+      "type": "string"
+     },
+     "from": {
+      "type": "string"
+     },
+     "to": {
+      "type": "string"
+     },
+     "reason": {
+      "type": "string"
+     },
+     "details": {
+      "type": "object"
+     }
+    }
+   },
+   "EventPage": {
+    "type": "object",
+    "properties": {
+     "items": {
+      "type": "array",
+      "items": {
+       "$ref": "#/components/schemas/Event"
+      }
+     },
+     "next_cursor": {
+      "type": "string",
+      "nullable": true
+     }
+    }
+   },
+   "DVRStorage": {
+    "type": "object",
+    "required": [
+     "id",
+     "disks"
+    ],
+    "properties": {
+     "id": {
+      "type": "string"
+     },
+     "mode": {
+      "type": "string",
+      "enum": [
+       "single",
+       "raid0",
+       "raid1"
+      ]
+     },
+     "disks": {
+      "type": "array",
+      "items": {
+       "type": "string"
+      },
+      "example": [
+       "/mnt/disk1",
+       "/mnt/disk2"
+      ]
+     }
+    }
+   },
+   "Settings": {
+    "type": "object",
+    "description": "Configurações do sistema (página Configurações e bloco settings do editor de texto).",
+    "properties": {
+     "system_name": {
+      "type": "string"
+     },
+     "brand_tagline": {
+      "type": "string",
+      "maxLength": 64
+     },
+     "brand_color": {
+      "type": "string",
+      "pattern": "^(#[0-9a-fA-F]{6})?$"
+     },
+     "brand_logo": {
+      "type": "string",
+      "description": "data:image/(png|svg+xml|jpeg|webp);base64,... até 256 KB"
+     },
+     "brand_login_message": {
+      "type": "string",
+      "maxLength": 300
+     },
+     "default_profile": {
+      "type": "string"
+     },
+     "allow_hevc_passthrough": {
+      "type": "boolean"
+     },
+     "udp_read_buffer_bytes": {
+      "type": "integer"
+     },
+     "default_failover": {
+      "$ref": "#/components/schemas/Failover"
+     },
+     "hls_segment_seconds": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 30
+     },
+     "hls_list_size": {
+      "type": "integer",
+      "minimum": 3,
+      "maximum": 60
+     },
+     "dvr_default_retention_hours": {
+      "type": "integer"
+     },
+     "dvr_default_storage": {
+      "type": "string"
+     },
+     "scheduler_max_cpu_percent": {
+      "type": "number"
+     },
+     "cost_passthrough": {
+      "type": "number"
+     },
+     "cost_transcode_per_megapixel": {
+      "type": "number"
+     },
+     "cost_gpu_offload": {
+      "type": "number"
+     },
+     "worker_offline_seconds": {
+      "type": "integer"
+     },
+     "drain_migrations_per_pass": {
+      "type": "integer"
+     },
+     "access_token_minutes": {
+      "type": "integer"
+     },
+     "refresh_token_hours": {
+      "type": "integer"
+     },
+     "login_attempts_per_minute": {
+      "type": "integer"
+     },
+     "updated_at": {
+      "type": "string",
+      "format": "date-time",
+      "readOnly": true
+     },
+     "updated_by": {
+      "type": "string",
+      "readOnly": true
+     }
+    }
+   },
+   "ServerSettings": {
+    "type": "object",
+    "description": "Ajustes de um servidor de mídia (vazio = valor do .env do servidor).",
+    "properties": {
+     "worker_id": {
+      "type": "string",
+      "readOnly": true
+     },
+     "ingest_interfaces": {
+      "type": "array",
+      "items": {
+       "type": "string"
+      }
+     },
+     "dvr_dir": {
+      "type": "string"
+     },
+     "public_hls_base": {
+      "type": "string"
+     },
+     "public_ts_base": {
+      "type": "string"
+     },
+     "public_dvr_base": {
+      "type": "string"
+     },
+     "roles": {
+      "type": "array",
+      "items": {
+       "type": "string",
+       "enum": [
+        "passthrough",
+        "transcode",
+        "dvr"
+       ]
+      },
+      "description": "Papéis do servidor (vazio = aceita qualquer canal)."
+     },
+     "updated_at": {
+      "type": "string",
+      "format": "date-time",
+      "readOnly": true
+     },
+     "updated_by": {
+      "type": "string",
+      "readOnly": true
+     }
+    }
+   },
+   "DRM": {
+    "type": "object",
+    "description": "Proteção do HLS e do DVR (ADR 0008). Com DRM, playlists e chaves exigem o token de reprodução (?token=) e a saída MPEG-TS por HTTP não é permitida.",
+    "properties": {
+     "enabled": {
+      "type": "boolean",
+      "default": false
+     },
+     "method": {
+      "type": "string",
+      "enum": [
+       "aes-128"
+      ],
+      "default": "aes-128"
+     },
+     "key_rotation_minutes": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 1440,
+      "default": 60,
+      "description": "Tempo de uso de cada chave de conteúdo."
+     }
+    }
+   },
+   "Auth": {
+    "type": "object",
+    "description": "Quem pode assistir (ADR 0009).",
+    "properties": {
+     "enabled": {
+      "type": "boolean"
+     },
+     "backend_url": {
+      "type": "string",
+      "format": "uri",
+      "description": "GET a cada nova sessão; 2xx libera."
+     },
+     "allow_ips": {
+      "type": "array",
+      "items": {
+       "type": "string"
+      },
+      "description": "IPs ou redes CIDR."
+     },
+     "deny_ips": {
+      "type": "array",
+      "items": {
+       "type": "string"
+      }
+     },
+     "max_sessions": {
+      "type": "integer",
+      "minimum": 0
+     },
+     "cache_seconds": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 86400,
+      "default": 60
+     },
+     "allow_on_error": {
+      "type": "boolean",
+      "default": false
+     }
+    }
+   },
+   "EPG": {
+    "type": "object",
+    "properties": {
+     "url": {
+      "type": "string",
+      "format": "uri",
+      "description": "Arquivo XMLTV (.xml ou .xml.gz)."
+     },
+     "xmltv_id": {
+      "type": "string",
+      "description": "ID do canal no XMLTV; vazio = id do canal."
+     }
+    }
+   },
+   "PlaySession": {
+    "type": "object",
+    "properties": {
+     "id": {
+      "type": "string"
+     },
+     "channel_id": {
+      "type": "string"
+     },
+     "worker_id": {
+      "type": "string"
+     },
+     "ip": {
+      "type": "string"
+     },
+     "user_agent": {
+      "type": "string"
+     },
+     "user_id": {
+      "type": "string"
+     },
+     "token": {
+      "type": "string"
+     },
+     "reason": {
+      "type": "string"
+     },
+     "proto": {
+      "type": "string",
+      "enum": [
+       "hls",
+       "mpegts",
+       "dvr"
+      ]
+     },
+     "started_at": {
+      "type": "string",
+      "format": "date-time"
+     },
+     "last_seen": {
+      "type": "string",
+      "format": "date-time"
+     },
+     "closed_at": {
+      "type": "string",
+      "format": "date-time"
+     },
+     "bytes": {
+      "type": "integer"
+     },
+     "requests": {
+      "type": "integer"
+     }
+    }
+   },
+   "Program": {
+    "type": "object",
+    "properties": {
+     "channel_id": {
+      "type": "string"
+     },
+     "start": {
+      "type": "string",
+      "format": "date-time"
+     },
+     "stop": {
+      "type": "string",
+      "format": "date-time"
+     },
+     "title": {
+      "type": "string"
+     },
+     "description": {
+      "type": "string"
+     },
+     "category": {
+      "type": "string"
+     }
+    }
+   },
+   "Overlay": {
+    "type": "object",
+    "description": "Logo gravado no vídeo. Exige mode=transcode. A imagem é um nome de arquivo (sem pastas) da pasta de logos dos servidores de mídia (NEXOSTREAM_OVERLAY_DIR); se o arquivo não existir no servidor, o canal segue no ar sem o logo.",
+    "properties": {
+     "enabled": {
+      "type": "boolean"
+     },
+     "image": {
+      "type": "string",
+      "example": "logo.png",
+      "description": "PNG ou JPG"
+     },
+     "position": {
+      "type": "string",
+      "enum": [
+       "top-left",
+       "top-right",
+       "bottom-left",
+       "bottom-right"
+      ],
+      "default": "top-right"
+     },
+     "margin": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 1000,
+      "description": "Pixels da imagem de origem até as bordas"
+     },
+     "width": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 3840,
+      "description": "Largura do logo em pixels da origem; 0 = tamanho do arquivo"
+     },
+     "opacity": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "description": "0,05 a 1; 0 = opaco"
+     }
+    }
+   }
+  }
+ }
+}

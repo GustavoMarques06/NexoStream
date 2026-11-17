@@ -1,0 +1,28 @@
+# Binaries and build output
+/bin/
+/dist/
+*.exe
+web-panel/dist/
+web-panel/node_modules/
+
+# Local runtime data (nexostream-dev, worker state, HLS output)
+/var/
+*.log
+
+# Secrets: never commit real configuration
+*.env
+!deploy/dev.env
+*.key
+*.creds
+*.password
+*.pem
+
+# Editors and OS
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db
+
+# Benchmark raw captures (keep the markdown reports)
+tests/load/resultados/raw/

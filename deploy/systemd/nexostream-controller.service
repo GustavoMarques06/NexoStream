@@ -1,0 +1,21 @@
+[Unit]
+Description=NexoStream Cluster Controller
+After=network-online.target postgresql.service nexostream-api.service
+Wants=network-online.target
+
+[Service]
+User=nexostream
+Group=nexostream
+EnvironmentFile=/etc/nexostream/controller.env
+ExecStart=/usr/local/bin/nexostream-controller
+Restart=always
+RestartSec=2
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+CapabilityBoundingSet=
+
+[Install]
+WantedBy=multi-user.target

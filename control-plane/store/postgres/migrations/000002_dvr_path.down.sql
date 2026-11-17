@@ -1,0 +1,1 @@
+ALTER TABLE dvr_policies DROP COLUMN IF EXISTS path;
